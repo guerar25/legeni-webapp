@@ -10,7 +10,9 @@ pipeline {
 
     environment {
         IMAGE          = "${params.DOCKERHUB_ID}/legeni-webapp"
-        VERSION        = "1.0.${env.BUILD_NUMBER}"
+        // main -> 1.0.<n> ; autre branche -> <branche>-<n> (ex : feature-couleur-3)
+        // "?: 'main'" : BRANCH_NAME n'existe que dans un job Multibranch
+        VERSION        = "${(env.BRANCH_NAME ?: 'main') == 'main' ? '1.0.' + env.BUILD_NUMBER : env.BRANCH_NAME.replaceAll('[^a-zA-Z0-9.-]', '-') + '-' + env.BUILD_NUMBER}"
         TEST_CONTAINER = "webapp-ci-${env.BUILD_NUMBER}"
         CI_NETWORK     = "ci-net-${env.BUILD_NUMBER}"
         // params.* a toujours une valeur (y compris au 1er build) : on la copie dans l'environnement du shell
@@ -55,7 +57,8 @@ pipeline {
         }
 
         stage('Push Docker Hub') {
-            when { expression { params.PUSH } }
+            // Seule la branche main publie une image
+            when { allOf { branch 'main'; expression { params.PUSH } } }
             steps {
                 withCredentials([usernamePassword(credentialsId: 'dockerhub',
                                                   usernameVariable: 'DH_USER',
