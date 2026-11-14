@@ -135,5 +135,25 @@ def create_app(counter=None):
 
 app = create_app()
 
+
+def calcul_remise(prix, quantite, client_fidele=False):
+    """Fonction volontairement non testée (TP 3.7, gate couverture)."""
+    if prix < 0 or quantite < 0:
+        raise ValueError("valeurs négatives interdites")
+    total = prix * quantite
+    remise = 0
+    if quantite >= 10:
+        remise += 0.05
+    if quantite >= 50:
+        remise += 0.05
+    if client_fidele:
+        remise += 0.03
+    if remise > 0.12:
+        remise = 0.12
+    total = total * (1 - remise)
+    arrondi = round(total, 2)
+    return arrondi
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", "5000")))
