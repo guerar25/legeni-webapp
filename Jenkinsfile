@@ -5,6 +5,7 @@ pipeline {
     parameters {
         string(name: 'DOCKERHUB_ID', defaultValue: 'guerar', description: 'Votre identifiant Docker Hub')
         booleanParam(name: 'PUSH', defaultValue: true, description: "Pousser l'image sur Docker Hub")
+        choice(name: 'APP_COLOR', choices: ['#1f6feb', '#2da44e', '#d1242f'], description: 'Couleur de la bannière')
     }
 
     environment {
@@ -12,6 +13,8 @@ pipeline {
         VERSION        = "1.0.${env.BUILD_NUMBER}"
         TEST_CONTAINER = "webapp-ci-${env.BUILD_NUMBER}"
         CI_NETWORK     = "ci-net-${env.BUILD_NUMBER}"
+        // params.* a toujours une valeur (y compris au 1er build) : on la copie dans l'environnement du shell
+        COLOR          = "${params.APP_COLOR}"
     }
 
     options {
@@ -38,12 +41,15 @@ pipeline {
             steps {
                 sh '''
                     docker network create $CI_NETWORK
-                    docker run -d --name $TEST_CONTAINER --network $CI_NETWORK $IMAGE:$VERSION
+                    docker run -d --name $TEST_CONTAINER --network $CI_NETWORK -e APP_COLOR="$COLOR" $IMAGE:$VERSION
                     # On interroge le conteneur depuis un conteneur curl placé sur le même réseau
                     docker run --rm --network $CI_NETWORK curlimages/curl:8.11.1 \
                         -sf --retry 10 --retry-connrefused --retry-delay 1 http://$TEST_CONTAINER:5000/health
                     docker run --rm --network $CI_NETWORK curlimages/curl:8.11.1 \
                         -sf http://$TEST_CONTAINER:5000/ | grep -q "Version $VERSION"
+                    # La couleur choisie doit apparaître dans la page
+                    docker run --rm --network $CI_NETWORK curlimages/curl:8.11.1 \
+                        -sf http://$TEST_CONTAINER:5000/ | grep -q "background: $COLOR"
                 '''
             }
         }
