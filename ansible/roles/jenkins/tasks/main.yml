@@ -89,3 +89,20 @@
   when: jenkins_mail_enabled
   notify: Redémarrer Jenkins
   tags: [mail]
+
+# ---------- Webhook GitHub via smee.io (lot 4) ----------
+- name: Relais smee.io -> Jenkins
+  community.docker.docker_container:
+    name: smee
+    image: "{{ jenkins_smee_image }}"
+    command: >-
+      npx -y smee-client@{{ jenkins_smee_client_version }}
+      --url {{ jenkins_smee_url }}
+      --target http://{{ jenkins_container }}:8080/github-webhook/
+    state: started
+    restart_policy: unless-stopped
+    networks:
+      - name: "{{ jenkins_networks[0].name }}"
+    networks_cli_compatible: true
+  when: jenkins_smee_url | length > 0
+  tags: [webhook]

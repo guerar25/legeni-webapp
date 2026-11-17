@@ -20,3 +20,9 @@ mailpit_container: mailpit
 mailpit_web_port: 8025
 jenkins_mail_smtp_host: "{{ mailpit_container }}"   # nom DNS du conteneur sur le réseau "jenkins"
 jenkins_mail_smtp_port: 1025
+# Webhook GitHub -> Jenkins : Jenkins (localhost) n'est pas joignable depuis Internet, le relais smee.io
+# reçoit les événements GitHub et les rejoue vers http://jenkins:8080/github-webhook/.
+# Laisser vide pour désactiver ; sinon URL d'un canal créé sur https://smee.io/new
+jenkins_smee_url: ""
+jenkins_smee_image: node:20.18.1-alpine
+jenkins_smee_client_version: 1.2.5      # >= 2.x ne transmet plus le Content-Type -> Jenkins répond 405
