@@ -10,6 +10,9 @@ jenkins_agent_port: 50000
 jenkins_networks:
   - name: jenkins
   - name: minikube
+    # IP fixe : sinon, si Jenkins démarre avant minikube (redémarrage du PC), Docker peut lui donner
+    # 192.168.49.2, l'adresse du nœud minikube -> "Address already in use" au démarrage du cluster
+    ipv4_address: 192.168.49.100
 # Notifications : serveur SMTP de test Mailpit (boîte de réception web sur http://localhost:8025)
 jenkins_mail_enabled: true
 mailpit_image: axllent/mailpit:v1.33.1
