@@ -1,0 +1,14 @@
+---
+- name: Redémarrer Jenkins
+  ansible.builtin.command: "docker restart {{ jenkins_container }}"
+  changed_when: true
+
+- name: Attendre Jenkins après redémarrage
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ jenkins_http_port }}/login"
+    status_code: 200
+  register: jenkins_restart_login
+  until: jenkins_restart_login.status == 200
+  retries: 30
+  delay: 5
+  listen: Redémarrer Jenkins
