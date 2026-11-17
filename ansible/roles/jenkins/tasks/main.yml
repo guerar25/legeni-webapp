@@ -62,3 +62,30 @@
   retries: 30
   delay: 5
   changed_when: false
+
+# ---------- Notifications par e-mail (lot 5) ----------
+- name: Serveur e-mail de test Mailpit
+  community.docker.docker_container:
+    name: "{{ mailpit_container }}"
+    image: "{{ mailpit_image }}"
+    state: started
+    restart_policy: unless-stopped
+    published_ports:
+      - "{{ mailpit_web_port }}:8025"          # boîte de réception web ; SMTP 1025 seulement sur le réseau interne
+    networks:
+      - name: "{{ jenkins_networks[0].name }}"
+    networks_cli_compatible: true
+  when: jenkins_mail_enabled
+  tags: [mail]
+
+- name: Configurer le serveur SMTP de Jenkins
+  community.docker.docker_container_copy_into:
+    container: "{{ jenkins_container }}"
+    content: "{{ lookup('ansible.builtin.template', 'hudson.tasks.Mailer.xml.j2') }}"
+    container_path: /var/jenkins_home/hudson.tasks.Mailer.xml
+    owner_id: 1000
+    group_id: 1000
+    mode: 420            # = 0644 en octal : ce module attend un entier ("0644" serait lu en décimal)
+  when: jenkins_mail_enabled
+  notify: Redémarrer Jenkins
+  tags: [mail]

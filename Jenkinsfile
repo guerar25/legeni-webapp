@@ -4,6 +4,7 @@
 // Aucun secret ici : uniquement des credentials Jenkins
 //   registry-credentials (Username/Password Docker Hub), kubeconfig (Secret file),
 //   ansible-vault-pass (Secret file), github (Username/Password), discord-webhook (Secret text, optionnel)
+// Notification d'échec par e-mail : SMTP Mailpit (rôle ansible jenkins), boîte sur http://localhost:8025
 pipeline {
     agent any
 
@@ -162,7 +163,23 @@ pipeline {
         }
         failure {
             script {
-                // Notification d'échec : la notification ne doit jamais faire échouer le pipeline
+                // Notifications d'échec : elles ne doivent jamais faire échouer le pipeline elles-mêmes
+                // 1) e-mail (SMTP Mailpit configuré par le rôle Ansible jenkins, boîte : http://localhost:8025)
+                try {
+                    mail to: 'equipe-devops@legeni.local',
+                         from: 'jenkins@legeni.local',
+                         subject: "❌ Échec ${env.JOB_NAME} #${env.BUILD_NUMBER} (${TAG})",
+                         body: """Le pipeline ${env.JOB_NAME} #${env.BUILD_NUMBER} a échoué.
+
+Branche : ${env.BRANCH_NAME}
+Version : ${TAG}
+Console : ${env.BUILD_URL}console
+
+La production n'a pas été modifiée (ou a été remise sur la version précédente par le rollback automatique)."""
+                } catch (err) {
+                    echo "E-mail non envoyé : ${err.message}"
+                }
+                // 2) Discord (optionnel : seulement si le credential "discord-webhook" existe)
                 try {
                     withCredentials([string(credentialsId: 'discord-webhook', variable: 'WEBHOOK')]) {
                         sh '''

@@ -10,3 +10,10 @@ jenkins_agent_port: 50000
 jenkins_networks:
   - name: jenkins
   - name: minikube
+# Notifications : serveur SMTP de test Mailpit (boîte de réception web sur http://localhost:8025)
+jenkins_mail_enabled: true
+mailpit_image: axllent/mailpit:v1.33.1
+mailpit_container: mailpit
+mailpit_web_port: 8025
+jenkins_mail_smtp_host: "{{ mailpit_container }}"   # nom DNS du conteneur sur le réseau "jenkins"
+jenkins_mail_smtp_port: 1025
