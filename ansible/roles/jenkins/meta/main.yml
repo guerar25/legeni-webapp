@@ -1,0 +1,11 @@
+---
+galaxy_info:
+  role_name: jenkins
+  author: guerar25
+  description: Construit l'image Jenkins du cours et lance le conteneur (socket Docker + réseau minikube)
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Ubuntu
+      versions: [noble]
+dependencies:
+  - role: docker
