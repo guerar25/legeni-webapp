@@ -1,4 +1,11 @@
 ---
+# Paquets Docker d'Ubuntu incompatibles avec ceux de Docker Inc. (doc officielle Docker).
+# "absent" sans purge : /var/lib/docker (images, volumes) est conservé.
+- name: Retirer les paquets Docker non officiels
+  ansible.builtin.apt:
+    name: "{{ docker_conflicting_packages }}"
+    state: absent
+
 - name: Installer les prérequis
   ansible.builtin.apt:
     name: [ca-certificates, curl, python3-requests, python3-docker]
