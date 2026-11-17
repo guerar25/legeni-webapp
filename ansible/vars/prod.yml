@@ -1,7 +1,7 @@
 ---
 k8s_namespace: legeni-prod
 app_env: prod
-app_color: "#2da44e"
+app_color: "#0969da"
 app_replicas: 3
 app_node_port: 30082
 app_hostname: legeni.local
