@@ -1,0 +1,182 @@
+# Manifests de Legeni WebApp, générés par Ansible (deploy.yml) — mêmes manifests, paramètres par environnement
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: webapp-config
+  namespace: {{ k8s_namespace }}
+  labels: {app: webapp, env: {{ app_env }}}
+data:
+  APP_ENV: "{{ app_env }}"
+  APP_COLOR: "{{ app_color }}"
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+---
+# Redis : StatefulSet + volume persistant (un PVC par réplique via volumeClaimTemplates)
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis
+  namespace: {{ k8s_namespace }}
+  labels: {app: redis, env: {{ app_env }}}
+spec:
+  serviceName: redis
+  replicas: 1
+  selector:
+    matchLabels: {app: redis}
+  template:
+    metadata:
+      labels: {app: redis, env: {{ app_env }}}
+    spec:
+      containers:
+        - name: redis
+          image: redis:7.4-alpine
+          args: ["--requirepass", "$(REDIS_PASSWORD)", "--appendonly", "yes"]
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: redis-secret, key: REDIS_PASSWORD}
+          ports:
+            - containerPort: 6379
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "redis-cli -a \"$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            tcpSocket: {port: 6379}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests: {cpu: 50m, memory: 32Mi}
+            limits: {cpu: 200m, memory: 128Mi}
+          volumeMounts:
+            - {name: data, mountPath: /data}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels: {app: redis, env: {{ app_env }}}
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests: {storage: 1Gi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: {{ k8s_namespace }}
+  labels: {app: redis, env: {{ app_env }}}
+spec:
+  clusterIP: None              # service headless du StatefulSet
+  selector: {app: redis}
+  ports:
+    - port: 6379
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webapp
+  namespace: {{ k8s_namespace }}
+  labels: {app: webapp, env: {{ app_env }}}
+  annotations:
+    kubernetes.io/change-cause: "deploy.yml : {{ app_image }}:{{ app_version }}"
+spec:
+{% if not hpa_enabled %}
+  replicas: {{ app_replicas }}
+{% endif %}
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxSurge: 1, maxUnavailable: 0}   # jamais moins de pods prêts que demandé
+  selector:
+    matchLabels: {app: webapp}
+  template:
+    metadata:
+      labels: {app: webapp, env: {{ app_env }}}
+      annotations:
+        # change avec la ConfigMap => rolling update automatique quand la configuration change
+        checksum/config: "{{ (app_env ~ app_color) | hash('sha1') }}"
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: webapp
+          image: "{{ app_image }}:{{ app_version }}"
+          ports:
+            - containerPort: 5000
+          envFrom:
+            - configMapRef: {name: webapp-config}
+            - secretRef: {name: redis-secret}
+          readinessProbe:
+            httpGet: {path: "{{ app_readiness_path }}", port: 5000}
+            periodSeconds: 2
+            timeoutSeconds: 3           # /ready interroge Redis (socket_timeout=2 s dans app.py)
+            failureThreshold: 2
+          livenessProbe:
+            httpGet: {path: /health, port: 5000}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              # laisse le temps au Service de retirer le pod avant l'arrêt de gunicorn (0 erreur pendant le rolling update)
+              exec: {command: ["sleep", "5"]}
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: 200m, memory: 128Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: webapp
+  namespace: {{ k8s_namespace }}
+  labels: {app: webapp, env: {{ app_env }}}
+spec:
+  type: NodePort
+  selector: {app: webapp}
+  ports:
+    - port: 80
+      targetPort: 5000
+      nodePort: {{ app_node_port }}
+---
+# Bonus : accès par nom d'hôte via l'addon ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: webapp
+  namespace: {{ k8s_namespace }}
+  labels: {app: webapp, env: {{ app_env }}}
+spec:
+  ingressClassName: nginx
+{% if ingress_tls | default(false) %}
+  tls:
+    - hosts: ["{{ app_hostname }}"]
+      secretName: webapp-tls
+{% endif %}
+  rules:
+    - host: {{ app_hostname }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: {name: webapp, port: {number: 80}}
+{% if hpa_enabled %}
+---
+# Bonus : autoscaling horizontal (addon metrics-server)
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: webapp
+  namespace: {{ k8s_namespace }}
+  labels: {app: webapp, env: {{ app_env }}}
+spec:
+  scaleTargetRef: {apiVersion: apps/v1, kind: Deployment, name: webapp}
+  minReplicas: {{ hpa_min_replicas }}
+  maxReplicas: {{ hpa_max_replicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: {type: Utilization, averageUtilization: {{ hpa_cpu_percent }}}
+{% endif %}
