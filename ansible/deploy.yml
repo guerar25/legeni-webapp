@@ -10,7 +10,7 @@
   vars:
     target_env: staging
     app_image: guerar/legeni-webapp
-    app_readiness_path: /ready        # surchargé pour simuler un déploiement raté (scénario 3)
+    app_readiness_path: /pret         # SCÉNARIO 3 : mauvais chemin -> les pods ne deviennent jamais prêts
     k8s_node_ip: 192.168.49.2         # IP du nœud minikube (minikube ip)
     rollout_timeout: 150
 
