@@ -1,0 +1,15 @@
+---
+# Lot 2 : installe toute l'infrastructure sur une machine vierge (Ubuntu 24.04)
+#   ansible-playbook provision.yml -K          (-K : mot de passe sudo)
+# Idempotent : une 2e exécution doit afficher changed=0.
+- name: Cluster Kubernetes (Docker + Minikube + addons)
+  hosts: k8s
+  become: true
+  roles:
+    - minikube          # dépend du rôle docker (meta/main.yml)
+
+- name: Serveur d'intégration continue (Jenkins en conteneur)
+  hosts: ci
+  become: true
+  roles:
+    - jenkins           # dépend du rôle docker

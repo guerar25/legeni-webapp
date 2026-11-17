@@ -1,0 +1,14 @@
+---
+minikube_version: v1.39.0
+kubectl_version: v1.37.2
+minikube_bin_dir: /usr/local/bin
+minikube_driver: docker
+minikube_cpus: 2
+minikube_memory: 3072          # Mo
+minikube_addons:
+  - metrics-server
+  - ingress
+# Utilisateur (non root) propriétaire du cluster : le driver docker refuse de tourner en root
+minikube_user: "{{ ansible_user | default(lookup('ansible.builtin.env', 'USER')) }}"
+# kubeconfig exporté pour Jenkins (à importer comme credential "Secret file" id: kubeconfig)
+minikube_jenkins_kubeconfig: "~{{ minikube_user }}/kubeconfig-jenkins.yml"

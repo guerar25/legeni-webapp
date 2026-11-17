@@ -1,0 +1,64 @@
+---
+- name: Dossier de construction de l'image Jenkins
+  ansible.builtin.file:
+    path: "{{ jenkins_build_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Copier le Dockerfile et la liste des plugins
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ jenkins_build_dir }}/{{ item }}"
+    mode: "0644"
+  loop: [Dockerfile, plugins.txt]
+  register: jenkins_sources
+
+- name: Construire l'image Jenkins (reconstruite seulement si ses sources changent)
+  community.docker.docker_image:
+    name: "{{ jenkins_image }}"
+    source: build
+    build:
+      path: "{{ jenkins_build_dir }}"
+    force_source: "{{ jenkins_sources is changed }}"
+
+- name: GID du groupe docker de l'hôte (accès au socket depuis le conteneur)
+  ansible.builtin.getent:
+    database: group
+    key: docker
+
+- name: Réseau Docker de Jenkins
+  community.docker.docker_network:
+    name: "{{ jenkins_networks[0].name }}"
+
+- name: Volume de données Jenkins
+  community.docker.docker_volume:
+    name: "{{ jenkins_volume }}"
+
+- name: Conteneur Jenkins
+  community.docker.docker_container:
+    name: "{{ jenkins_container }}"
+    image: "{{ jenkins_image }}"
+    state: started
+    restart_policy: unless-stopped
+    published_ports:
+      - "{{ jenkins_http_port }}:8080"
+      - "{{ jenkins_agent_port }}:50000"
+    groups:
+      - "{{ getent_group['docker'][1] }}"
+    volumes:
+      - "{{ jenkins_volume }}:/var/jenkins_home"
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks: "{{ jenkins_networks }}"
+    networks_cli_compatible: true
+    comparisons:
+      networks: allow_more_present
+
+- name: Attendre que Jenkins réponde
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ jenkins_http_port }}/login"
+    status_code: 200
+  register: jenkins_login
+  until: jenkins_login.status == 200
+  retries: 30
+  delay: 5
+  changed_when: false

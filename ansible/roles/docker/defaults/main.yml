@@ -1,0 +1,12 @@
+---
+# Paquets Docker installés depuis le dépôt officiel
+docker_packages:
+  - docker-ce
+  - docker-ce-cli
+  - containerd.io
+  - docker-compose-plugin
+  - docker-buildx-plugin
+# Utilisateurs autorisés à utiliser Docker sans sudo (par défaut : l'utilisateur qui se connecte)
+docker_users:
+  - "{{ ansible_user | default(lookup('ansible.builtin.env', 'USER')) }}"
+docker_apt_key: /etc/apt/keyrings/docker.asc

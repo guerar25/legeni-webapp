@@ -1,0 +1,10 @@
+---
+galaxy_info:
+  role_name: docker
+  author: guerar25
+  description: Installe Docker CE depuis le dépôt officiel
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Ubuntu
+      versions: [noble]
+dependencies: []
