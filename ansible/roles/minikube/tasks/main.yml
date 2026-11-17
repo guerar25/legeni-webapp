@@ -1,4 +1,21 @@
 ---
+# Docker Desktop (WSL) dépose des liens symboliques vers ses propres outils, en lecture seule :
+# on les remplace par de vrais binaires gérés ici.
+- name: Repérer d'éventuels liens symboliques minikube / kubectl
+  ansible.builtin.stat:
+    path: "{{ minikube_bin_dir }}/{{ item }}"
+  loop: [minikube, kubectl]
+  register: minikube_bin_stat
+
+- name: Supprimer ces liens symboliques
+  ansible.builtin.file:
+    path: "{{ item.stat.path }}"
+    state: absent
+  loop: "{{ minikube_bin_stat.results | selectattr('stat.exists') | selectattr('stat.islnk') | list }}"
+  loop_control:
+    label: "{{ item.item }}"
+  become: true
+
 - name: Installer minikube et kubectl
   ansible.builtin.get_url:
     url: "{{ item.url }}"
