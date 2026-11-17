@@ -1,0 +1,21 @@
+---
+# Paquets Docker installés depuis le dépôt officiel
+docker_packages:
+  - docker-ce
+  - docker-ce-cli
+  - containerd.io
+  - docker-compose-plugin
+  - docker-buildx-plugin
+# Utilisateurs autorisés à utiliser Docker sans sudo (par défaut : l'utilisateur qui se connecte)
+docker_users:
+  - "{{ ansible_user | default(lookup('ansible.builtin.env', 'USER')) }}"
+docker_apt_key: /etc/apt/keyrings/docker.asc
+# Paquets de la distribution en conflit avec docker-ce (ex. docker-compose-v2 possède aussi le plugin compose)
+docker_conflicting_packages:
+  - docker.io
+  - docker-doc
+  - docker-compose
+  - docker-compose-v2
+  - podman-docker
+  - containerd
+  - runc

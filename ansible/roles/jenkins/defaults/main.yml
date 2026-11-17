@@ -1,0 +1,12 @@
+---
+jenkins_image: legeni/jenkins:lts          # image du TP 3.1 (Docker CLI, kubectl, Ansible, plugins)
+jenkins_container: jenkins
+jenkins_build_dir: /opt/jenkins-docker
+# Volume qui contient TOUTE la configuration Jenkins (nom repris de l'installation compose du TP 3.1)
+jenkins_volume: jenkins-docker_jenkins_home
+jenkins_http_port: 8080
+jenkins_agent_port: 50000
+# "minikube" permet à Jenkins de joindre l'API Kubernetes (192.168.49.2:8443) depuis son conteneur
+jenkins_networks:
+  - name: jenkins
+  - name: minikube

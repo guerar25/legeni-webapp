@@ -1,0 +1,9 @@
+# Mot de passe Ansible Vault : jamais dans Git (credential Jenkins "ansible-vault-pass")
+ansible/.vault_pass
+# kubeconfig exporté pour Jenkins (contient des clés privées)
+kubeconfig*.yml
+reports/
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage

@@ -1,0 +1,99 @@
+---
+# Lot 3 : déploie l'application dans Kubernetes (namespace staging ou prod)
+#   ansible-playbook deploy.yml -e target_env=staging -e app_version=1.0.0-12 --vault-password-file .vault_pass
+# Étapes : namespace + secret -> manifests -> attente de la fin du rolling update
+#          -> smoke test de la version -> rollback automatique (block/rescue) en cas d'échec.
+- name: Déploiement Kubernetes de Legeni WebApp
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    target_env: staging
+    app_image: guerar/legeni-webapp
+    app_readiness_path: /ready        # surchargé pour simuler un déploiement raté (scénario 3)
+    k8s_node_ip: 192.168.49.2         # IP du nœud minikube (minikube ip)
+    rollout_timeout: 150
+
+  vars_files:
+    - vars/vault.yml
+
+  pre_tasks:
+    - name: Vérifier les paramètres
+      ansible.builtin.assert:
+        that:
+          - target_env in ['staging', 'prod']
+          - app_version is defined
+          - app_version != 'latest'          # jamais "latest" en production
+        fail_msg: "Usage : -e target_env=staging|prod -e app_version=<VERSION>-<BUILD>"
+
+    - name: Charger les paramètres de l'environnement
+      ansible.builtin.include_vars: "vars/{{ target_env }}.yml"
+
+  tasks:
+    - name: Namespace
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: "{{ k8s_namespace }}"
+            labels: {env: "{{ app_env }}"}
+
+    - name: Secret Redis (valeur issue du Vault, jamais affichée)
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: redis-secret
+            namespace: "{{ k8s_namespace }}"
+            labels: {app: redis, env: "{{ app_env }}"}
+          type: Opaque
+          stringData:
+            REDIS_PASSWORD: "{{ vault_redis_password[target_env] }}"
+      no_log: true
+
+    - name: Déploiement avec rollback automatique
+      block:
+        - name: Appliquer les manifests et attendre la fin du rolling update
+          kubernetes.core.k8s:
+            state: present
+            template: templates/k8s/app.yml.j2
+            wait: true
+            wait_timeout: "{{ rollout_timeout }}"
+
+        - name: Smoke test - la version servie est bien celle déployée
+          ansible.builtin.uri:
+            url: "http://{{ k8s_node_ip }}:{{ app_node_port }}/api/info"
+            return_content: true
+          register: smoke
+          until: smoke.status == 200 and smoke.json.version == app_version
+          retries: 10
+          delay: 3
+
+        - name: Résultat
+          ansible.builtin.debug:
+            msg: "{{ app_env }} OK : version {{ smoke.json.version }} sur http://{{ k8s_node_ip }}:{{ app_node_port }}"
+
+      rescue:
+        - name: Retour à la révision précédente du Deployment
+          kubernetes.core.k8s_rollback:
+            api_version: apps/v1
+            kind: Deployment
+            name: webapp
+            namespace: "{{ k8s_namespace }}"
+
+        - name: Attendre que la version précédente soit de nouveau disponible
+          kubernetes.core.k8s_info:
+            kind: Deployment
+            name: webapp
+            namespace: "{{ k8s_namespace }}"
+            wait: true
+            wait_condition: {type: Available, status: "True"}
+            wait_timeout: 120
+
+        - name: Échouer explicitement (le pipeline passe au rouge)
+          ansible.builtin.fail:
+            msg: "Déploiement de {{ app_version }} en {{ app_env }} échoué : rollback effectué"

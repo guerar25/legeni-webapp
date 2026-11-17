@@ -1,0 +1,12 @@
+---
+k8s_namespace: legeni-prod
+app_env: prod
+app_color: "#2da44e"
+app_replicas: 3
+app_node_port: 30082
+app_hostname: legeni.local
+# Bonus : autoscaling horizontal en production
+hpa_enabled: true
+hpa_min_replicas: 3
+hpa_max_replicas: 6
+hpa_cpu_percent: 60

@@ -1,0 +1,62 @@
+---
+# Paquets Docker d'Ubuntu incompatibles avec ceux de Docker Inc. (doc officielle Docker).
+# "absent" sans purge : /var/lib/docker (images, volumes) est conservé.
+- name: Retirer les paquets Docker non officiels
+  ansible.builtin.apt:
+    name: "{{ docker_conflicting_packages }}"
+    state: absent
+
+- name: Installer les prérequis
+  ansible.builtin.apt:
+    name: [ca-certificates, curl, python3-requests, python3-docker]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Créer le dossier des clés APT
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+- name: Télécharger la clé GPG de Docker
+  ansible.builtin.get_url:
+    url: "https://download.docker.com/linux/{{ ansible_facts['distribution'] | lower }}/gpg"
+    dest: "{{ docker_apt_key }}"
+    mode: "0644"
+
+# copy plutôt qu'apt_repository : le fichier est entièrement géré par Ansible,
+# donc jamais de doublon de dépôt avec une clé différente (erreur apt "Conflicting values set for option Signed-By")
+- name: Déclarer le dépôt Docker
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/docker.list
+    mode: "0644"
+    content: >
+      deb [arch={{ 'amd64' if ansible_facts['architecture'] == 'x86_64' else 'arm64' }}
+      signed-by={{ docker_apt_key }}]
+      https://download.docker.com/linux/{{ ansible_facts['distribution'] | lower }}
+      {{ ansible_facts['distribution_release'] }} stable
+  register: docker_repo
+
+- name: Installer Docker
+  ansible.builtin.apt:
+    name: "{{ docker_packages }}"
+    state: present
+    update_cache: "{{ docker_repo is changed }}"
+  notify: Redémarrer docker
+
+# dockerd est lancé par activation de socket (-H fd://) : docker.socket doit être actif avant docker.service
+- name: Démarrer Docker (socket puis service)
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+    daemon_reload: true
+  loop: [docker.socket, docker.service]
+
+- name: Autoriser les utilisateurs à utiliser Docker
+  ansible.builtin.user:
+    name: "{{ item }}"
+    groups: docker
+    append: true
+  loop: "{{ docker_users }}"
