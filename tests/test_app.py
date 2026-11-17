@@ -50,8 +50,3 @@ def test_api_info(client):
     assert data["app"] == "legeni-webapp"
     assert data["version"] == "1.2.3"
     assert data["hostname"]
-
-
-def test_scenario2_code_defectueux(client):
-    # Scénario 2 de la soutenance : test volontairement faux
-    assert client.get("/health").status_code == 500
