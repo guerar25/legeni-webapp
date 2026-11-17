@@ -85,7 +85,7 @@
     container_path: /var/jenkins_home/hudson.tasks.Mailer.xml
     owner_id: 1000
     group_id: 1000
-    mode: "0644"
+    mode: 420            # = 0644 en octal : ce module attend un entier ("0644" serait lu en décimal)
   when: jenkins_mail_enabled
   notify: Redémarrer Jenkins
   tags: [mail]
